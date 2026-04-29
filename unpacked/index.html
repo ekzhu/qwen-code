@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qwen Code Unpacked</title>
+  <meta name="description" content="What actually happens when you type a message into Qwen Code? The agent loop, ~20 built-in tools, subagents, sandbox, and how it differs from Claude Code — mapped from the source." />
+  <meta name="theme-color" content="#0a0815" />
+  <meta property="og:title" content="Qwen Code Unpacked" />
+  <meta property="og:description" content="Qwen Code internals, mapped from the source — and a side-by-side with Claude Code." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">侃</span>
+      <span class="brand-text">Qwen Code <em>Unpacked</em></span>
+    </div>
+    <nav class="topnav">
+      <a href="#agent-loop">Loop</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#tools">Tools</a>
+      <a href="#commands">Commands</a>
+      <a href="#agents-skills">Agents & Skills</a>
+      <a href="#vs-claude">vs Claude Code</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- =================== HERO =================== -->
+    <section class="hero">
+      <div class="hero-eyebrow">Qwen Code</div>
+      <h1 class="hero-title"><span class="grad">Unpacked</span></h1>
+      <p class="hero-lede">
+        What actually happens when you type a message into <code>qwen</code>?
+        The agent loop, the ~20 built-in tools, the subagent runtime, and the sandbox — mapped straight from the source at
+        <a href="https://github.com/QwenLM/qwen-code" target="_blank" rel="noreferrer">QwenLM/qwen-code</a>.
+      </p>
+      <div class="stats">
+        <div class="stat"><div class="stat-num">1.8K+</div><div class="stat-label">Source files</div></div>
+        <div class="stat"><div class="stat-num">540K+</div><div class="stat-label">Lines of code</div></div>
+        <div class="stat"><div class="stat-num">20</div><div class="stat-label">Built-in tools</div></div>
+        <div class="stat"><div class="stat-num">50+</div><div class="stat-label">Slash commands</div></div>
+      </div>
+      <a class="cta" href="#agent-loop">Start exploring <span>↓</span></a>
+    </section>
+
+    <!-- =================== AGENT LOOP =================== -->
+    <section id="agent-loop" class="section">
+      <div class="section-num">01</div>
+      <h2 class="section-title">The Agent Loop</h2>
+      <p class="section-lede">From keypress to rendered response — every turn flows through these layers.</p>
+
+      <div class="loop-viz">
+        <div class="loop-rail" id="loopRail"></div>
+        <div class="loop-detail" id="loopDetail"></div>
+        <div class="loop-controls">
+          <button id="loopPrev" class="loop-btn">◀</button>
+          <span id="loopCounter" class="loop-counter">1 / 11</span>
+          <button id="loopNext" class="loop-btn">▶</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== ARCHITECTURE =================== -->
+    <section id="architecture" class="section">
+      <div class="section-num">02</div>
+      <h2 class="section-title">Architecture</h2>
+      <p class="section-lede">Ten packages, ~543K LOC. Click a box to see what's inside.</p>
+
+      <div class="arch-grid" id="archGrid"></div>
+      <div class="arch-detail" id="archDetail">
+        <div class="arch-detail-empty">Click a package above to see what's inside.</div>
+      </div>
+    </section>
+
+    <!-- =================== TOOLS =================== -->
+    <section id="tools" class="section">
+      <div class="section-num">03</div>
+      <h2 class="section-title">Tool System</h2>
+      <p class="section-lede">
+        Every built-in tool Qwen Code can call. All schemas are loaded into the system prompt up front — there is no <code>ToolSearch</code> here.
+      </p>
+
+      <div class="tools-grid" id="toolsGrid"></div>
+      <div class="tool-detail" id="toolDetail">
+        <div class="tool-detail-empty">Click a tool to see what it does and where it lives.</div>
+      </div>
+    </section>
+
+    <!-- =================== COMMANDS =================== -->
+    <section id="commands" class="section">
+      <div class="section-num">04</div>
+      <h2 class="section-title">Command Catalog</h2>
+      <p class="section-lede">Every slash command shipped in the CLI, sorted by what it does.</p>
+      <div class="cmd-grid" id="cmdGrid"></div>
+    </section>
+
+    <!-- =================== AGENTS & SKILLS =================== -->
+    <section id="agents-skills" class="section">
+      <div class="section-num">05</div>
+      <h2 class="section-title">Subagents & Skills</h2>
+      <p class="section-lede">
+        Qwen ships three built-in subagents and four bundled skills. User-defined ones live in
+        <code>~/.qwen/agents/</code> and <code>~/.qwen/skills/</code>.
+      </p>
+
+      <div class="two-col">
+        <div class="card-stack">
+          <div class="stack-title">Built-in subagents</div>
+          <div id="subagentsList"></div>
+        </div>
+        <div class="card-stack">
+          <div class="stack-title">Bundled skills</div>
+          <div id="skillsList"></div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-title">How a subagent runs</div>
+        <p>
+          <code>AgentTool.execute</code> in <span class="path">tools/agent/agent.ts</span> loads a config via
+          <code>SubagentManager</code>, instantiates an <code>AgentHeadless</code> (one-shot) or
+          <code>AgentInteractive</code> (long-lived), and runs <code>AgentCore.runReasoningLoop</code> in
+          <span class="path">agents/runtime/agent-core.ts</span>. The subagent gets a fresh
+          <code>GeminiChat</code> with its own system prompt — the parent's transcript is <em>not</em> shared.
+          Only the final text returns to the parent. Recursion is blocked by
+          <code>EXCLUDED_TOOLS_FOR_SUBAGENTS</code>.
+        </p>
+      </div>
+    </section>
+
+    <!-- =================== VS CLAUDE CODE =================== -->
+    <section id="vs-claude" class="section">
+      <div class="section-num">06</div>
+      <h2 class="section-title">Qwen Code <em>vs</em> Claude Code</h2>
+      <p class="section-lede">
+        Both are open-source-ish terminal agents. They make different bets on tool surface, context sharing, and where the trust boundary lives.
+      </p>
+
+      <table class="cmp-table">
+        <thead>
+          <tr><th>Dimension</th><th class="cmp-qwen">Qwen Code</th><th class="cmp-cc">Claude Code</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Built-in tools</td>
+            <td>~20 (tool-names.ts) + dynamic MCP + project-discovered tools.</td>
+            <td>~54 published; partitioned into eager + deferred sets.</td>
+          </tr>
+          <tr>
+            <td>Tool loading model</td>
+            <td>All schemas loaded up front via <code>ToolRegistry.warmAll()</code>. No fuzzy/lazy loading.</td>
+            <td>Eager hot-path tools (Read/Edit/Bash/Agent/Skill/...) + ~25 deferred tools whose schema must be fetched via <code>ToolSearch</code> before they can be called.</td>
+          </tr>
+          <tr>
+            <td>System prompt</td>
+            <td>One <code>getCoreSystemPrompt()</code> assembled in <span class="path">core/prompts.ts</span>: base mandate + user memory + append instructions. <code>QWEN_SYSTEM_MD</code> can override the whole thing.</td>
+            <td>Heavily conditional, prompt-cached, with per-mode reminders, skill discovery hints, and dynamic deferred-tool announcements injected via <code>system-reminder</code>.</td>
+          </tr>
+          <tr>
+            <td>Subagents</td>
+            <td>3 built-in: <code>general-purpose</code>, <code>Explore</code>, <code>statusline-setup</code>. Plus user-defined and project-defined Markdown configs.</td>
+            <td>6+ built-in incl. <code>Plan</code>, <code>Explore</code>, <code>general-purpose</code>, <code>code-reviewer</code>, <code>statusline-setup</code>, <code>codex-rescue</code>; plus implicit <em>fork</em> worker.</td>
+          </tr>
+          <tr>
+            <td>Context sharing into a subagent</td>
+            <td>Fresh window. Only the <code>prompt</code> field of <code>AgentTool</code> is passed in (optionally with extra <code>systemContext</code>/<code>extraHistory</code>).</td>
+            <td>Two modes: <em>fresh subagent</em> (when <code>subagent_type</code> is given) or <em>fork</em> (omit type) which inherits the full parent transcript and shares the prompt cache.</td>
+          </tr>
+          <tr>
+            <td>Result returned to parent</td>
+            <td>Final text only. Tool calls and intermediate output stay in the agent's transcript.</td>
+            <td>Final summary only. Each subagent writes its own JSONL transcript; parent is explicitly told not to tail the fork's <code>output_file</code> mid-flight.</td>
+          </tr>
+          <tr>
+            <td>Background / parallel agents</td>
+            <td><code>run_in_background: true</code> on <code>AgentTool</code>; tracked in <code>BackgroundTaskRegistry</code>. <code>SendMessage</code> injects messages into a running agent at tool-round boundaries.</td>
+            <td><code>run_in_background</code> on <code>Agent</code>, plus a multi-agent <em>Coordinator</em> mode and worker forks running in isolated git worktrees.</td>
+          </tr>
+          <tr>
+            <td>Sandbox</td>
+            <td>Inherited from Gemini CLI: opt-in container (Docker/Podman) <em>or</em> macOS Seatbelt (<code>sandbox-exec</code>) with restrictive profiles. Image: <code>qwen-code-sandbox</code>.</td>
+            <td>Opt-in via <code>/sandbox</code>: macOS Seatbelt, Linux <code>bwrap</code>, WSL2. No container. Out-of-sandbox HTTP proxy enforces a domain allowlist.</td>
+          </tr>
+          <tr>
+            <td>Permission modes</td>
+            <td>4 modes in <code>ApprovalMode</code> (config.ts): <code>plan</code>, <code>default</code>, <code>auto-edit</code>, <code>yolo</code>. Rule engine: deny &gt; ask &gt; allow &gt; default.</td>
+            <td>7 modes incl. <code>plan</code>, <code>default</code>, <code>acceptEdits</code>, <code>auto</code>, <code>dontAsk</code>, <code>bypassPermissions</code>, <code>bubble</code> (subagent escalation). 7-layer safety stack including an LLM-based YOLO classifier.</td>
+          </tr>
+          <tr>
+            <td>Hooks</td>
+            <td><code>preToolUse</code>, <code>postToolUse</code>, <code>postToolUseFailure</code> events — fired by <code>CoreToolScheduler</code>.</td>
+            <td>27 events × 4 execution types (shell, LLM, webhook, subagent verifier).</td>
+          </tr>
+          <tr>
+            <td>MCP</td>
+            <td>Full client + OAuth (<code>mcp-client.ts</code>, <code>oauth-provider.ts</code>, keychain). Tools registered alongside built-ins.</td>
+            <td>Same conceptually. MCP resource tools <code>ListMcpResources</code>/<code>ReadMcpResource</code> are deferred behind ToolSearch.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub-h3">Where the designs diverge</h3>
+
+      <div class="diverge-grid">
+        <div class="diverge-card">
+          <div class="diverge-h">Tool loading: eager vs deferred</div>
+          <p>
+            Qwen Code keeps things uniform — every tool's full JSON schema is in the prompt for every turn. That's fine when you have ~20 tools, and it makes execution behaviour predictable. Claude Code ships ~2.5× more tools and partitions them: a small eager set for the hot loop and a larger deferred set hidden behind <code>ToolSearch</code>. The model has to <em>ask</em> for a deferred tool's schema by name or keyword before it can call it.
+          </p>
+          <p>
+            The deferred mechanism is a string match (<code>"select:Read,Edit"</code> or <code>"notebook jupyter"</code>) — not embeddings. The trade is straightforward: more tools at the cost of an extra round-trip whenever the model needs an unfamiliar one. With prompt caching the schemas only get streamed once; without it, the eager-everything path quickly bloats every cold turn.
+          </p>
+        </div>
+
+        <div class="diverge-card">
+          <div class="diverge-h">Subagent context model</div>
+          <p>
+            Qwen's <code>AgentTool</code> is the simple model: a fresh <code>GeminiChat</code>, a configured system prompt, the user-supplied prompt, and a filtered tool set (<code>EXCLUDED_TOOLS_FOR_SUBAGENTS</code> blocks recursion + cron + task control). The parent gets a single string back.
+          </p>
+          <p>
+            Claude Code carries the same fresh-context primitive but adds a second one: <em>forks</em>. Omit <code>subagent_type</code> and the agent inherits the parent's full conversation, sharing the prompt cache. Forks run in the background and are designed so the parent never reads their tool noise — completion arrives as a notification with an <code>output_file</code> path the parent is told not to tail. The fresh-subagent vs fork choice is essentially: <em>do I want this work to share my context, or do I want it shielded from it?</em>
+          </p>
+        </div>
+
+        <div class="diverge-card">
+          <div class="diverge-h">Sandbox: container vs OS-level</div>
+          <p>
+            Both default to an unsandboxed runtime with an explicit opt-in. Qwen Code (via Gemini CLI heritage) supports <em>both</em> Docker/Podman <em>and</em> Seatbelt — <code>sandboxConfig.command</code> in <span class="path">config.ts</span> takes <code>'docker' | 'podman' | 'sandbox-exec'</code>, and ships a <code>qwen-code-sandbox</code> image. Claude Code skips containers entirely and uses Seatbelt on macOS, <code>bwrap</code> on Linux, plus an out-of-sandbox HTTP proxy with a domain allowlist.
+          </p>
+          <p>
+            Containers buy you reproducibility and a hermetic FS; the OS-level approach buys lower latency and zero cold-start cost. Neither approach gives the agent a permission-free environment by default — both still consult a deny/ask/allow rule engine for boundary crossings.
+          </p>
+        </div>
+
+        <div class="diverge-card">
+          <div class="diverge-h">Open question — does sandbox <em>save tokens</em>?</div>
+          <p>
+            The user asked whether a sandboxed, permission-less environment cuts tokens by skipping approval round-trips. Short answer: <strong>yes, but the savings are real-but-modest</strong>, not 2×.
+          </p>
+          <p>
+            Each interactive permission cycle injects roughly <strong>100–300 tokens</strong>: the assistant's tool-call message (which you'd pay for anyway), the denied/approved <code>tool_result</code> (a templated ~120-token block on denial, ~10–30 tokens on approval), the user's clicked-decision turn, and any retry. A medium task with 10–40 risky tool calls under default mode means roughly <strong>1–5K tokens of pure approval overhead</strong>, plus latency. With sandbox + auto-mode, the deny-first engine pre-clears most calls silently and only boundary crossings (writing outside CWD, network egress, <code>git push</code>) prompt the user.
+          </p>
+          <p>
+            That's a <strong>5–15% reduction</strong> on a typical session — meaningful, but the dominant cost is the (cached) system prompt and the model's own thinking, not approvals. The real wins from sandbox are <em>latency</em> and <em>operator friction</em>, not raw tokens.
+          </p>
+          <p class="footnote">
+            Anthropic's own design notes (cited in the VILA-Lab Dive-into-Claude-Code analysis) report that users approve <strong>93%</strong> of permission prompts — i.e. most prompts add no safety value, only friction. That's the case for sandboxing in design, even before token math.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== HIDDEN / NOTABLE =================== -->
+    <section id="notable" class="section">
+      <div class="section-num">07</div>
+      <h2 class="section-title">Notable internals</h2>
+      <p class="section-lede">A few subsystems worth knowing about — not hidden, but easy to miss.</p>
+
+      <div class="hidden-grid" id="hiddenGrid"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-brand">Qwen Code <em>Unpacked</em></div>
+    <p>
+      Unofficial. Not affiliated with Alibaba/Qwen or Anthropic. Built from
+      publicly available source at <a href="https://github.com/QwenLM/qwen-code">QwenLM/qwen-code</a> and
+      cross-referenced with <a href="https://ccunpacked.dev/">ccunpacked.dev</a>,
+      <a href="https://github.com/Piebald-AI/claude-code-system-prompts">Piebald-AI's system-prompt archive</a>,
+      and the <a href="https://github.com/VILA-Lab/Dive-into-Claude-Code">Dive-into-Claude-Code</a> analysis.
+    </p>
+    <p class="footer-meta">Analysis date: April 2026 · Some details may drift as the source evolves.</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
