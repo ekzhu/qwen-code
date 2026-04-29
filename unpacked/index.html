@@ -28,7 +28,9 @@
       <a href="#tools">Tools</a>
       <a href="#commands">Commands</a>
       <a href="#agents-skills">Agents & Skills</a>
+      <a href="#notable">Internals</a>
       <a href="#vs-claude">vs Claude Code</a>
+      <a href="#future">Future</a>
     </nav>
   </header>
 
@@ -139,9 +141,18 @@
       </div>
     </section>
 
+    <!-- =================== NOTABLE INTERNALS =================== -->
+    <section id="notable" class="section">
+      <div class="section-num">06</div>
+      <h2 class="section-title">Notable internals</h2>
+      <p class="section-lede">A few Qwen Code subsystems worth knowing about — not hidden, but easy to miss when reading the source top-down.</p>
+
+      <div class="hidden-grid" id="hiddenGrid"></div>
+    </section>
+
     <!-- =================== VS CLAUDE CODE =================== -->
     <section id="vs-claude" class="section">
-      <div class="section-num">06</div>
+      <div class="section-num">07</div>
       <h2 class="section-title">Qwen Code <em>vs</em> Claude Code</h2>
       <p class="section-lede">
         Both are open-source-ish terminal agents. They make different bets on tool surface, context sharing, and where the trust boundary lives.
@@ -210,68 +221,139 @@
         </tbody>
       </table>
 
-      <h3 class="sub-h3">Where the designs diverge</h3>
+      <h3 class="sub-h3">Where Claude Code is ahead</h3>
+      <p class="section-lede" style="margin-top:-8px">
+        The matrix above maps both surfaces side by side. This section names the concrete gaps Qwen Code would need to close to match Claude Code as a harness, ordered roughly by impact.
+      </p>
 
       <div class="diverge-grid">
         <div class="diverge-card">
-          <div class="diverge-h">Tool loading: eager vs deferred</div>
+          <div class="diverge-h">Gap 1 · Tool surface, with no lazy loading</div>
           <p>
-            Qwen Code keeps things uniform — every tool's full JSON schema is in the prompt for every turn. That's fine when you have ~20 tools, and it makes execution behaviour predictable. Claude Code ships ~2.5× more tools and partitions them: a small eager set for the hot loop and a larger deferred set hidden behind <code>ToolSearch</code>. The model has to <em>ask</em> for a deferred tool's schema by name or keyword before it can call it.
+            Claude Code ships <strong>~54</strong> built-in tools and partitions them. A small eager hot-path set (Read / Edit / Write / Bash / Agent / Skill / ScheduleWakeup / ToolSearch) lives in the system prompt every turn. The remaining ~25 — notebook, web, plan-mode, task-tracker, cron, MCP-resource, team, push-notification, worktree — are <em>deferred</em>. The model has to call <code>ToolSearch</code> with <code>"select:Read,Edit"</code> or a keyword query like <code>"notebook jupyter"</code>; the matching tool's full JSON schema returns inline and the tool is callable for the rest of the session. Calling a deferred tool without fetching it first throws <code>InputValidationError</code>.
           </p>
           <p>
-            The deferred mechanism is a string match (<code>"select:Read,Edit"</code> or <code>"notebook jupyter"</code>) — not embeddings. The trade is straightforward: more tools at the cost of an extra round-trip whenever the model needs an unfamiliar one. With prompt caching the schemas only get streamed once; without it, the eager-everything path quickly bloats every cold turn.
-          </p>
-        </div>
-
-        <div class="diverge-card">
-          <div class="diverge-h">Subagent context model</div>
-          <p>
-            Qwen's <code>AgentTool</code> is the simple model: a fresh <code>GeminiChat</code>, a configured system prompt, the user-supplied prompt, and a filtered tool set (<code>EXCLUDED_TOOLS_FOR_SUBAGENTS</code> blocks recursion + cron + task control). The parent gets a single string back.
-          </p>
-          <p>
-            Claude Code carries the same fresh-context primitive but adds a second one: <em>forks</em>. Omit <code>subagent_type</code> and the agent inherits the parent's full conversation, sharing the prompt cache. Forks run in the background and are designed so the parent never reads their tool noise — completion arrives as a notification with an <code>output_file</code> path the parent is told not to tail. The fresh-subagent vs fork choice is essentially: <em>do I want this work to share my context, or do I want it shielded from it?</em>
+            Qwen Code has <strong>~20</strong> built-in tools (<span class="path">core/src/tools/tool-names.ts</span>) and loads every schema upfront via <code>ToolRegistry.warmAll()</code>. There is no <code>ToolSearch</code> equivalent and no deferred concept — discovered MCP tools and project tools join the same eager set. That keeps the harness simple and execution behaviour predictable, but every cold turn pays the full schema cost. Without a lazy-loading mechanism, the surface can't realistically grow past ~30–40 tools before context budgets get squeezed.
           </p>
         </div>
 
         <div class="diverge-card">
-          <div class="diverge-h">Sandbox: container vs OS-level</div>
+          <div class="diverge-h">Gap 2 · No fork-style subagents</div>
           <p>
-            Both default to an unsandboxed runtime with an explicit opt-in. Qwen Code (via Gemini CLI heritage) supports <em>both</em> Docker/Podman <em>and</em> Seatbelt — <code>sandboxConfig.command</code> in <span class="path">config.ts</span> takes <code>'docker' | 'podman' | 'sandbox-exec'</code>, and ships a <code>qwen-code-sandbox</code> image. Claude Code skips containers entirely and uses Seatbelt on macOS, <code>bwrap</code> on Linux, plus an out-of-sandbox HTTP proxy with a domain allowlist.
+            Claude Code's <code>Agent</code> tool has two distinct modes. Pass a <code>subagent_type</code> (<code>Plan</code> / <code>Explore</code> / <code>general-purpose</code> / ...) and you get a <em>fresh</em> window: the subagent starts with zero context and only sees the prompt the parent put in the call — the standard delegation pattern. Omit <code>subagent_type</code> and you get a <em>fork</em>: the subagent inherits the parent's full transcript, shares the prompt cache, runs in the background by design, and is explicitly told to write its tool noise to an <code>output_file</code> the parent is forbidden to read mid-flight. Forks are how a Claude Code session offloads side-quests without dropping the thread.
           </p>
           <p>
-            Containers buy you reproducibility and a hermetic FS; the OS-level approach buys lower latency and zero cold-start cost. Neither approach gives the agent a permission-free environment by default — both still consult a deny/ask/allow rule engine for boundary crossings.
+            Qwen Code's <code>AgentTool</code> only implements the fresh-window mode. Every spawn loads a <code>SubagentConfig</code> via <code>SubagentManager</code> and builds a brand-new <code>GeminiChat</code> with the subagent's own system prompt; the parent transcript is never shared. You can pass extra context manually via <code>systemContext</code> / <code>extraHistory</code>, but there is no built-in "continue this thread, just in a sub-process" primitive and no shared prompt cache. The closest equivalent — <code>run_in_background:true</code> — still spins up a fresh window.
           </p>
         </div>
 
         <div class="diverge-card">
-          <div class="diverge-h">Skills — depth vs breadth</div>
+          <div class="diverge-h">Gap 3 · Thinner permission and safety stack</div>
           <p>
-            Both agents support <strong>user-defined skills</strong> as Markdown files with YAML frontmatter — Qwen at <code>~/.qwen/skills/&lt;name&gt;/SKILL.md</code>, Claude at <code>~/.claude/skills/...</code> (plus plugin-namespaced skills like <code>claude-api</code> and <code>superpowers:code-reviewer</code>). Both auto-surface skills relevant to the current turn through a system reminder, and both let the skill declare an <code>allowedTools</code> allowlist so the skill runtime can't accidentally reach for unrelated tools.
+            Claude Code carries <strong>seven</strong> <code>ApprovalMode</code> values (<code>plan</code>, <code>default</code>, <code>acceptEdits</code>, <code>auto</code>, <code>dontAsk</code>, <code>bypassPermissions</code>, <code>bubble</code> — the last being a dedicated escalation channel for subagents asking the parent for permission), an LLM-based <code>yoloClassifier</code> that races a fast-filter and a chain-of-thought against a timeout to decide whether a given command is safe to auto-approve, and a seven-layer safety stack with the sandbox as one layer among many. Anthropic's own design notes target the 93% rate of "pure friction" prompt approvals as the thing this stack is designed to bring down.
           </p>
           <p>
-            <strong>Built-in skill count diverges sharply.</strong> Qwen ships <strong>4</strong> bundled skills under <span class="path">core/src/skills/bundled/</span>: <code>batch</code>, <code>loop</code>, <code>qc-helper</code>, <code>review</code>. Claude Code's distribution surfaces <strong>10+ user-invocable</strong> skills (visible in the runtime skill list): <code>init</code>, <code>review</code>, <code>security-review</code>, <code>simplify</code>, <code>loop</code>, <code>schedule</code>, <code>claude-api</code>, <code>update-config</code>, <code>keybindings-help</code>, <code>fewer-permission-prompts</code> — plus marketplace plugins.
+            Qwen Code has <strong>four</strong> <code>ApprovalMode</code> values (<code>plan</code> / <code>default</code> / <code>auto-edit</code> / <code>yolo</code>, <span class="path">config.ts:144-148</span>) and a single rule engine (<code>deny &gt; ask &gt; allow &gt; default</code>). There is no LLM classifier, no <code>bubble</code>-style escalation between subagent and parent, and no equivalent to <code>acceptEdits</code> as a separate axis. The rule format is expressive — <code>Bash(ls -l)</code>, <code>Edit(/path/*.ts)</code>, <code>mcp/resource_read(github.com/*)</code> — but it leans on the user to write good rules ahead of time rather than reasoning about the actual command at the moment of the call.
+          </p>
+        </div>
+
+        <div class="diverge-card">
+          <div class="diverge-h">Gap 4 · Fewer skills, no plugin distribution</div>
+          <p>
+            Claude Code surfaces <strong>10+</strong> user-invocable bundled skills covering code review (<code>review</code>, <code>security-review</code>, <code>simplify</code>), workflow (<code>loop</code>, <code>schedule</code>), API help (<code>claude-api</code>), and a harness-meta tier (<code>init</code>, <code>update-config</code>, <code>keybindings-help</code>, <code>fewer-permission-prompts</code> — which sweeps your transcripts for prompts you keep approving and proposes an allowlist). It also has plugin namespacing — skills like <code>claude-api</code> and <code>superpowers:code-reviewer</code> ship from separate plugin packages distributed through a marketplace.
           </p>
           <p>
-            <strong>Quality-wise the comparison is more even than the count suggests.</strong> Qwen's bundled skills are unusually deep for so few of them: <code>batch</code> is a full parallel-orchestration recipe with chunking + worker dispatch + result aggregation; <code>review</code> hard-codes the GitHub <em>Create Review API</em> with a "silence is better than noise" guard against AI-comment fatigue; <code>qc-helper</code> ships an indexed <code>docs/</code> tree the skill loads on demand and can edit <code>~/.qwen/settings.json</code> for the user; <code>loop</code> has carefully written natural-language interval parsing.
+            Qwen Code ships <strong>four</strong> bundled skills under <span class="path">core/src/skills/bundled/</span>: <code>batch</code>, <code>loop</code>, <code>qc-helper</code>, <code>review</code>. They are unusually deep per skill — <code>batch</code> is a full parallel-orchestration recipe, <code>review</code> hard-codes the GitHub Create Review API with a "silence is better than noise" guard, <code>qc-helper</code> ships an indexed <code>docs/</code> tree — but there is no harness-meta tier (no equivalent of <code>update-config</code>, <code>keybindings-help</code>, or <code>fewer-permission-prompts</code>), no <code>security-review</code> counterpart, and no plugin namespacing. User skills land at <code>~/.qwen/skills/&lt;name&gt;/SKILL.md</code> as a flat list inside a level. The <code>SKILL.md</code> primitive itself is already there; what's missing is the catalog and the distribution channel.
+          </p>
+        </div>
+
+        <div class="diverge-card">
+          <div class="diverge-h">Gap 5 · Smaller hook surface</div>
+          <p>
+            Claude Code's hook system fires on <strong>27 events</strong> with <strong>four execution types</strong> — shell scripts, LLM calls, webhooks, and subagent verifiers — letting users insert custom checks at nearly every lifecycle point: pre/post tool, pre/post compact, on stop, on user-prompt-submit, on subagent completion, etc. Verifiers in particular let a hook re-prompt the agent if a check fails.
           </p>
           <p>
-            Claude's catalog leans on <em>breadth</em>. It covers the same code-review use case with <code>review</code> + <code>security-review</code> as separate skills, adds a meta-tier that Qwen doesn't have (<code>update-config</code> for harness settings, <code>keybindings-help</code>, <code>fewer-permission-prompts</code> which sweeps your transcripts for prompts you keep approving and proposes an allowlist), and has a domain-specific helper (<code>claude-api</code>) for using the Anthropic SDK. The standalone <code>loop</code> and <code>schedule</code> skills correspond closely to Qwen's <code>loop</code> + the cron tools.
-          </p>
-          <p class="footnote">
-            Net read: Qwen's skills are higher-value-per-skill, Claude's catalog covers more surfaces. User-creation ergonomics are roughly equivalent — both want a SKILL.md with a description, an argument hint, and an allowedTools list, and both auto-discover them from a known directory. Claude additionally supports plugin distribution and inter-skill namespacing; Qwen treats every skill as a flat name within a level (project / user / extension / bundled).
+            Qwen Code's <code>CoreToolScheduler</code> fires <strong>three</strong>: <code>preToolUse</code>, <code>postToolUse</code>, <code>postToolUseFailure</code>. That covers the 80% case (block dangerous calls, lint after writes, log everything) but it's not enough for verifiers that need to run after a subagent completes, for hooks that should steer compaction, or for reacting at the user-prompt-submit boundary. Closing this gap is mostly mechanical — the dispatcher exists, the events don't.
           </p>
         </div>
       </div>
     </section>
 
-    <!-- =================== HIDDEN / NOTABLE =================== -->
-    <section id="notable" class="section">
-      <div class="section-num">07</div>
-      <h2 class="section-title">Notable internals</h2>
-      <p class="section-lede">A few subsystems worth knowing about — not hidden, but easy to miss.</p>
+    <!-- =================== FUTURE DIRECTIONS =================== -->
+    <section id="future" class="section">
+      <div class="section-num">08</div>
+      <h2 class="section-title">Future directions</h2>
+      <p class="section-lede">
+        Where Qwen Code could go next — informed by the gaps above, but pitched as forward-looking work, not catch-up.
+      </p>
 
-      <div class="hidden-grid" id="hiddenGrid"></div>
+      <div class="future-grid">
+        <div class="future-card">
+          <div class="future-tag">infra</div>
+          <div class="future-h">Sandbox-first execution</div>
+          <p>
+            The pieces are already in place — <code>sandboxConfig.command</code> in <span class="path">core/src/config/config.ts</span> already accepts <code>'docker' | 'podman' | 'sandbox-exec'</code>, and the <code>qwen-code-sandbox</code> image ships with the project. What's missing is making sandbox the <em>default</em> and reframing the permission engine around boundary crossings instead of per-tool prompts. Inside a hermetic container the agent can run shells, edits, and network calls with near-YOLO freedom; only egress to the host filesystem, the host network, or the user's git remote should hit an approval. Done well, this is where <code>auto-edit</code> mode finally becomes safe to keep on by default.
+          </p>
+        </div>
+
+        <div class="future-card">
+          <div class="future-tag">runtime</div>
+          <div class="future-h">Lazy-loading tool registry</div>
+          <p>
+            <code>ToolRegistry.warmAll()</code> works fine at 20 tools but won't scale past 30–40 without context bloat on every cold turn. Adding a deferred set behind a Qwen-equivalent of <code>ToolSearch</code> — name-based <code>select:</code> queries plus keyword fuzzy match, returning full JSONSchema inline — would let the catalog grow without paying for it on warm-up. The natural deferred candidates are already obvious: cron tools, MCP-resource tools, future notebook / web-browser / push-notification tools.
+          </p>
+        </div>
+
+        <div class="future-card">
+          <div class="future-tag">runtime</div>
+          <div class="future-h">Fork-style subagents</div>
+          <p>
+            Add a second mode to <code>AgentTool</code> that inherits the parent's transcript and prompt cache instead of starting fresh. This is the missing primitive for "go investigate this side-quest while I keep the main thread" without paying re-priming costs. The hard parts — preventing the parent from tailing the fork's output, surfacing completion as a notification, isolating tool noise — already have a precedent in <code>BackgroundTaskRegistry</code>.
+          </p>
+        </div>
+
+        <div class="future-card">
+          <div class="future-tag">safety</div>
+          <div class="future-h">Command classifier on the fast model</div>
+          <p>
+            Use the <code>lightweightModel</code> Qwen Code already configures for memory tasks to gate borderline tool calls in real time. The classifier reads the proposed command (Bash, Edit, network fetch) plus session context and decides allow / ask / deny — eliminating most pure-friction approval prompts without lowering the floor on actually risky calls. Anthropic's number is that 93% of permission prompts are approved; that's the budget.
+          </p>
+        </div>
+
+        <div class="future-card">
+          <div class="future-tag">ecosystem</div>
+          <div class="future-h">Skill marketplace and plugin namespacing</div>
+          <p>
+            The <code>SKILL.md</code> primitive is solid. What's missing is a distribution channel — a registry, semantic versioning, plugin namespacing (so two skills called <code>review</code> from different sources can coexist as <code>vendorA:review</code> / <code>vendorB:review</code>), and a <code>qwen install &lt;skill&gt;</code> command. The four bundled skills today are deep enough to be a quality bar; the question is whether the community wants to ship the next four hundred.
+          </p>
+        </div>
+
+        <div class="future-card">
+          <div class="future-tag">extensibility</div>
+          <div class="future-h">Hook surface expansion + verifiers</div>
+          <p>
+            Add events for <code>preCompact</code>, <code>userPromptSubmit</code>, <code>subagentStop</code>, and a <code>verifier</code> execution type that can re-prompt the agent if a check fails. The <code>preToolUse</code> / <code>postToolUse</code> / <code>postToolUseFailure</code> trio is the floor — verifiers and compaction-time hooks are the ceiling that turns hooks from "intercept dangerous calls" into "shape the agent's behavior end-to-end."
+          </p>
+        </div>
+
+        <div class="future-card">
+          <div class="future-tag">multi-agent</div>
+          <div class="future-h">Coordinator / parallel worktrees</div>
+          <p>
+            <code>Arena</code> already runs two agents on the same task for comparison; the natural next step is a coordinator that breaks a task into pieces, dispatches workers in isolated <code>git worktree</code>s, and merges results. The Channels package and <code>SendMessage</code> tool give the IPC primitives; what's missing is the orchestration layer and a clean answer to "how do conflicting edits get reconciled?".
+          </p>
+        </div>
+
+        <div class="future-card">
+          <div class="future-tag">memory</div>
+          <div class="future-h">Cross-session memory consolidation</div>
+          <p>
+            <code>Dream mode</code> already runs a lightweight pass between sessions. The forward direction is making this consolidation persistent and queryable — durable memory entries indexed by topic, with the ability for any future session to pull the relevant slice into its system prompt. The <code>memory/extract.ts</code> and <code>memory/governance.ts</code> modules sketch the shape; the missing piece is a retrieval-time query layer.
+          </p>
+        </div>
+      </div>
     </section>
+
   </main>
 
   <footer class="footer">

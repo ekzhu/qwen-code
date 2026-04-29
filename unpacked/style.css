@@ -772,11 +772,10 @@ main {
 .cmp-table tbody td:nth-child(3) { color: var(--text-muted); }
 
 .diverge-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 18px;
 }
-@media (max-width: 800px) { .diverge-grid { grid-template-columns: 1fr; } }
 
 .diverge-card {
   background: var(--surface);
@@ -803,6 +802,57 @@ main {
   border-top: 1px dashed var(--border);
   padding-top: 12px;
   margin-top: 12px;
+}
+
+/* ================================================================
+   FUTURE DIRECTIONS
+   ================================================================ */
+.future-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+@media (max-width: 800px) { .future-grid { grid-template-columns: 1fr; } }
+
+.future-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  transition: all 0.2s ease;
+}
+.future-card:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(139,109,255,0.12);
+}
+.future-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--teal);
+  background: var(--teal-soft);
+  border: 1px solid rgba(77,208,225,0.3);
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.future-h {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent-hi);
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+.future-card p {
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.7;
+  font-size: 14.5px;
 }
 
 /* ================================================================
