@@ -107,8 +107,9 @@
     `;
     const body = cell.querySelector('.tool-cat-body');
     cat.tools.forEach(tool => {
-      const pill = document.createElement('div');
+      const pill = document.createElement('button');
       pill.className = 'tool-pill';
+      pill.type = 'button';
       pill.textContent = tool.name;
       pill.addEventListener('click', () => {
         if (activePill) activePill.classList.remove('active');
@@ -131,21 +132,36 @@
 // ---------- Command grid ----------
 (function buildCommands() {
   const grid = document.getElementById('cmdGrid');
+  const detail = document.getElementById('cmdDetail');
+  let activeItem = null;
+
   COMMANDS.forEach(cat => {
     const cell = document.createElement('div');
     cell.className = 'cmd-cat';
     cell.innerHTML = `
       <div class="cmd-cat-h">
         <div class="cmd-cat-name">${cat.name}</div>
-        <div class="cmd-cat-count">${cat.items.length}</div>
+        <div class="cmd-cat-count">${cat.items.length} commands</div>
       </div>
       <div class="cmd-list"></div>
     `;
     const list = cell.querySelector('.cmd-list');
     cat.items.forEach(c => {
-      const item = document.createElement('span');
+      const item = document.createElement('button');
       item.className = 'cmd-item';
-      item.textContent = c;
+      item.type = 'button';
+      item.textContent = c.cmd;
+      item.addEventListener('click', () => {
+        if (activeItem) activeItem.classList.remove('active');
+        item.classList.add('active');
+        activeItem = item;
+        detail.innerHTML = `
+          <span class="tool-detail-cat">${cat.name}</span>
+          <h4>${c.cmd}</h4>
+          <p class="cmd-detail-desc">${c.desc}</p>
+          <div class="loop-detail-file">packages/${c.file}</div>
+        `;
+      });
       list.appendChild(item);
     });
     grid.appendChild(cell);
@@ -171,7 +187,7 @@
     const row = document.createElement('div');
     row.className = 'stack-row';
     row.innerHTML = `
-      <div class="stack-name">${s.name}</div>
+      <div class="stack-name">/${s.name} <span class="stack-args">${s.args || ''}</span></div>
       <div class="stack-meta">${s.where}</div>
       <div class="stack-desc">${s.desc}</div>
     `;

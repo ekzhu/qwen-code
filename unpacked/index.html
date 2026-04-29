@@ -98,8 +98,11 @@
     <section id="commands" class="section">
       <div class="section-num">04</div>
       <h2 class="section-title">Command Catalog</h2>
-      <p class="section-lede">Every slash command shipped in the CLI, sorted by what it does.</p>
+      <p class="section-lede">Every slash command shipped in the CLI, sorted by what it does. Click one to see what it does and where it's wired up.</p>
       <div class="cmd-grid" id="cmdGrid"></div>
+      <div class="cmd-detail" id="cmdDetail">
+        <div class="cmd-detail-empty">Click a command to see its description and source file.</div>
+      </div>
     </section>
 
     <!-- =================== AGENTS & SKILLS =================== -->
@@ -241,18 +244,21 @@
         </div>
 
         <div class="diverge-card">
-          <div class="diverge-h">Open question — does sandbox <em>save tokens</em>?</div>
+          <div class="diverge-h">Skills — depth vs breadth</div>
           <p>
-            The user asked whether a sandboxed, permission-less environment cuts tokens by skipping approval round-trips. Short answer: <strong>yes, but the savings are real-but-modest</strong>, not 2×.
+            Both agents support <strong>user-defined skills</strong> as Markdown files with YAML frontmatter — Qwen at <code>~/.qwen/skills/&lt;name&gt;/SKILL.md</code>, Claude at <code>~/.claude/skills/...</code> (plus plugin-namespaced skills like <code>claude-api</code> and <code>superpowers:code-reviewer</code>). Both auto-surface skills relevant to the current turn through a system reminder, and both let the skill declare an <code>allowedTools</code> allowlist so the skill runtime can't accidentally reach for unrelated tools.
           </p>
           <p>
-            Each interactive permission cycle injects roughly <strong>100–300 tokens</strong>: the assistant's tool-call message (which you'd pay for anyway), the denied/approved <code>tool_result</code> (a templated ~120-token block on denial, ~10–30 tokens on approval), the user's clicked-decision turn, and any retry. A medium task with 10–40 risky tool calls under default mode means roughly <strong>1–5K tokens of pure approval overhead</strong>, plus latency. With sandbox + auto-mode, the deny-first engine pre-clears most calls silently and only boundary crossings (writing outside CWD, network egress, <code>git push</code>) prompt the user.
+            <strong>Built-in skill count diverges sharply.</strong> Qwen ships <strong>4</strong> bundled skills under <span class="path">core/src/skills/bundled/</span>: <code>batch</code>, <code>loop</code>, <code>qc-helper</code>, <code>review</code>. Claude Code's distribution surfaces <strong>10+ user-invocable</strong> skills (visible in the runtime skill list): <code>init</code>, <code>review</code>, <code>security-review</code>, <code>simplify</code>, <code>loop</code>, <code>schedule</code>, <code>claude-api</code>, <code>update-config</code>, <code>keybindings-help</code>, <code>fewer-permission-prompts</code> — plus marketplace plugins.
           </p>
           <p>
-            That's a <strong>5–15% reduction</strong> on a typical session — meaningful, but the dominant cost is the (cached) system prompt and the model's own thinking, not approvals. The real wins from sandbox are <em>latency</em> and <em>operator friction</em>, not raw tokens.
+            <strong>Quality-wise the comparison is more even than the count suggests.</strong> Qwen's bundled skills are unusually deep for so few of them: <code>batch</code> is a full parallel-orchestration recipe with chunking + worker dispatch + result aggregation; <code>review</code> hard-codes the GitHub <em>Create Review API</em> with a "silence is better than noise" guard against AI-comment fatigue; <code>qc-helper</code> ships an indexed <code>docs/</code> tree the skill loads on demand and can edit <code>~/.qwen/settings.json</code> for the user; <code>loop</code> has carefully written natural-language interval parsing.
+          </p>
+          <p>
+            Claude's catalog leans on <em>breadth</em>. It covers the same code-review use case with <code>review</code> + <code>security-review</code> as separate skills, adds a meta-tier that Qwen doesn't have (<code>update-config</code> for harness settings, <code>keybindings-help</code>, <code>fewer-permission-prompts</code> which sweeps your transcripts for prompts you keep approving and proposes an allowlist), and has a domain-specific helper (<code>claude-api</code>) for using the Anthropic SDK. The standalone <code>loop</code> and <code>schedule</code> skills correspond closely to Qwen's <code>loop</code> + the cron tools.
           </p>
           <p class="footnote">
-            Anthropic's own design notes (cited in the VILA-Lab Dive-into-Claude-Code analysis) report that users approve <strong>93%</strong> of permission prompts — i.e. most prompts add no safety value, only friction. That's the case for sandboxing in design, even before token math.
+            Net read: Qwen's skills are higher-value-per-skill, Claude's catalog covers more surfaces. User-creation ergonomics are roughly equivalent — both want a SKILL.md with a description, an argument hint, and an allowedTools list, and both auto-discover them from a known directory. Claude additionally supports plugin distribution and inter-skill namespacing; Qwen treats every skill as a flat name within a level (project / user / extension / bundled).
           </p>
         </div>
       </div>

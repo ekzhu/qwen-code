@@ -168,27 +168,85 @@ const TOOL_CATEGORIES = [
   },
 ];
 
-// ---------- Slash commands ----------
+// ---------- Slash commands (with descriptions sourced from get description() in each *Command.ts) ----------
+const CMD = (cmd, desc, file) => ({ cmd, desc, file });
+
 const COMMANDS = [
   {
     name: 'Setup & config',
-    items: ['/init', '/auth', '/login', '/logout', '/model', '/manageModels', '/theme', '/editor', '/language', '/terminalSetup', '/setupGithub', '/extensions', '/mcp', '/hooks'],
+    items: [
+      CMD('/init',          'Analyze the project and create a tailored QWEN.md file.',                                 'cli/src/ui/commands/initCommand.ts'),
+      CMD('/auth',          'Configure authentication information for login.',                                          'cli/src/commands/auth.ts'),
+      CMD('/model',         'Switch the model for this session (--fast for suggestion model).',                         'cli/src/ui/commands/modelCommand.ts'),
+      CMD('/manageModels',  'Browse dynamic model catalogs and choose which models stay enabled locally.',              'cli/src/ui/commands/manageModelsCommand.ts'),
+      CMD('/theme',         'Change the theme.',                                                                        'cli/src/ui/commands/themeCommand.ts'),
+      CMD('/editor',        'Set external editor preference.',                                                          'cli/src/ui/commands/editorCommand.ts'),
+      CMD('/language',      'View or change the language setting.',                                                     'cli/src/ui/commands/languageCommand.ts'),
+      CMD('/terminalSetup', 'Configure terminal keybindings for multiline input (VS Code, Cursor, Windsurf, Trae).',   'cli/src/ui/commands/terminalSetupCommand.ts'),
+      CMD('/setupGithub',   'Set up GitHub Actions.',                                                                   'cli/src/ui/commands/setupGithubCommand.ts'),
+      CMD('/extensions',    'Open extensions page in your browser.',                                                    'cli/src/ui/commands/extensionsCommand.ts'),
+      CMD('/mcp',           'Open the MCP management dialog.',                                                          'cli/src/ui/commands/mcpCommand.ts'),
+      CMD('/hooks',         'List all configured hooks.',                                                               'cli/src/ui/commands/hooksCommand.ts'),
+      CMD('/settings',      'View and edit Qwen Code settings.',                                                        'cli/src/ui/commands/settingsCommand.ts'),
+    ],
   },
   {
     name: 'Daily workflow',
-    items: ['/help', '/clear', '/compress', '/context', '/copy', '/export', '/summary', '/stats', '/skills', '/agents', '/tasks', '/plan', '/approvalMode', '/tools'],
+    items: [
+      CMD('/help',         'Help on Qwen Code commands and shortcuts.',                                  'cli/src/ui/commands/helpCommand.ts'),
+      CMD('/clear',        'Clear conversation history and free up context.',                            'cli/src/ui/commands/clearCommand.ts'),
+      CMD('/compress',     'Compress the context by replacing it with a summary.',                       'cli/src/ui/commands/compressCommand.ts'),
+      CMD('/context',      'Show context window usage. /context detail for per-item breakdown.',         'cli/src/ui/commands/contextCommand.ts'),
+      CMD('/copy',         'Copy the last result or code snippet to clipboard.',                         'cli/src/ui/commands/copyCommand.ts'),
+      CMD('/export',       'Export the session message history to a file.',                              'cli/src/ui/commands/exportCommand.ts'),
+      CMD('/summary',      'Generate a project summary and save it to .qwen/PROJECT_SUMMARY.md.',        'cli/src/ui/commands/summaryCommand.ts'),
+      CMD('/stats',        'Check session stats. Usage: /stats [model|tools].',                          'cli/src/ui/commands/statsCommand.ts'),
+      CMD('/skills',       'List available skills.',                                                     'cli/src/ui/commands/skillsCommand.ts'),
+      CMD('/agents',       'Manage subagents for specialized task delegation.',                          'cli/src/ui/commands/agentsCommand.ts'),
+      CMD('/tasks',        'List background tasks.',                                                     'cli/src/ui/commands/tasksCommand.ts'),
+      CMD('/plan',         'Switch into plan mode or exit it.',                                          'cli/src/ui/commands/planCommand.ts'),
+      CMD('/approvalMode', 'View or change the approval mode for tool usage.',                           'cli/src/ui/commands/approvalModeCommand.ts'),
+      CMD('/tools',        'List available Qwen Code tools. Usage: /tools [desc].',                      'cli/src/ui/commands/toolsCommand.ts'),
+    ],
   },
   {
     name: 'Sessions & memory',
-    items: ['/resume', '/restore', '/rewind', '/recap', '/memory', '/remember', '/forget', '/dream', '/insight', '/delete', '/rename'],
+    items: [
+      CMD('/resume',   'Resume a previous session.',                                                     'cli/src/ui/commands/resumeCommand.ts'),
+      CMD('/restore',  'Restore a tool call — resets conversation and file history to the suggested state.', 'cli/src/ui/commands/restoreCommand.ts'),
+      CMD('/rewind',   'Rewind conversation to a previous turn.',                                        'cli/src/ui/commands/rewindCommand.ts'),
+      CMD('/recap',    'Generate a one-line session recap now.',                                         'cli/src/ui/commands/recapCommand.ts'),
+      CMD('/memory',   'Open the memory manager.',                                                       'cli/src/ui/commands/memoryCommand.ts'),
+      CMD('/remember', 'Save a durable memory to the memory system.',                                    'cli/src/ui/commands/rememberCommand.ts'),
+      CMD('/forget',   'Remove matching entries from managed auto-memory.',                              'cli/src/ui/commands/forgetCommand.ts'),
+      CMD('/dream',    'Consolidate managed auto-memory topic files.',                                   'cli/src/ui/commands/dreamCommand.ts'),
+      CMD('/insight',  'Generate personalized programming insights from your chat history.',             'cli/src/ui/commands/insightCommand.ts'),
+      CMD('/delete',   'Delete a previous session.',                                                     'cli/src/ui/commands/deleteCommand.ts'),
+      CMD('/rename',   'Rename the current conversation. --auto lets the fast model pick a title.',      'cli/src/ui/commands/renameCommand.ts'),
+    ],
   },
   {
-    name: 'Diagnostics',
-    items: ['/about', '/doctor', '/bug', '/permissions', '/trust', '/directory', '/ide', '/statusline', '/vim'],
+    name: 'Diagnostics & UI',
+    items: [
+      CMD('/about',       'Show version info.',                                                          'cli/src/ui/commands/aboutCommand.ts'),
+      CMD('/doctor',      'Run installation and environment diagnostics.',                               'cli/src/ui/commands/doctorCommand.ts'),
+      CMD('/bug',         'Submit a bug report.',                                                        'cli/src/ui/commands/bugCommand.ts'),
+      CMD('/permissions', 'Manage permission rules.',                                                    'cli/src/ui/commands/permissionsCommand.ts'),
+      CMD('/trust',       'Manage folder trust settings.',                                               'cli/src/ui/commands/trustCommand.ts'),
+      CMD('/directory',   'Open the working-directory dialog.',                                          'cli/src/ui/commands/directoryCommand.tsx'),
+      CMD('/ide',         'Manage IDE integration.',                                                     'cli/src/ui/commands/ideCommand.ts'),
+      CMD('/statusline',  'Set up Qwen Code\'s status line UI.',                                         'cli/src/ui/commands/statuslineCommand.ts'),
+      CMD('/vim',         'Toggle vim mode on/off.',                                                     'cli/src/ui/commands/vimCommand.ts'),
+    ],
   },
   {
     name: 'Advanced',
-    items: ['/arena', '/btw', '/docs', '/quit'],
+    items: [
+      CMD('/arena', 'Manage Arena sessions — multi-agent comparison mode.',                              'cli/src/ui/commands/arenaCommand.ts'),
+      CMD('/btw',   'Ask a quick side question without affecting the main conversation.',                'cli/src/ui/commands/btwCommand.ts'),
+      CMD('/docs',  'Open full Qwen Code documentation in your browser.',                                'cli/src/ui/commands/docsCommand.ts'),
+      CMD('/quit',  'Exit the CLI.',                                                                     'cli/src/ui/commands/quitCommand.ts'),
+    ],
   },
 ];
 
@@ -211,12 +269,32 @@ const SUBAGENTS = [
   },
 ];
 
-// ---------- Bundled skills ----------
+// ---------- Bundled skills (sourced from each SKILL.md frontmatter) ----------
 const SKILLS = [
-  { name: 'loop',      where: 'skills/bundled/loop',      desc: 'Run a prompt or slash command on a recurring interval. The "/loop 5m /foo" pattern.' },
-  { name: 'batch',     where: 'skills/bundled/batch',     desc: 'Schedule batches of jobs against the cron infrastructure.' },
-  { name: 'review',    where: 'skills/bundled/review',    desc: 'Review a pull request — checks out the diff, runs analysis, posts a structured review.' },
-  { name: 'qc-helper', where: 'skills/bundled/qc-helper', desc: 'Quality-control helpers — lint sweeps, test triage, common cleanup recipes.' },
+  {
+    name: 'batch',
+    where: 'skills/bundled/batch/SKILL.md',
+    args: '<operation> <file-pattern>',
+    desc: 'Execute batch operations on multiple files in parallel. Discovers files via glob, splits them into chunks, and dispatches parallel worker subagents through the Agent tool. Aggregates results into a single summary. Allowed tools: agent, glob, grep, read, edit, write, shell, askUserQuestion.',
+  },
+  {
+    name: 'loop',
+    where: 'skills/bundled/loop/SKILL.md',
+    args: '[interval] <prompt> | list | clear',
+    desc: 'Schedule a recurring prompt. /loop 5m check the build, /loop list, /loop clear. Defaults to 10m. Built on top of CronCreate / CronList / CronDelete — those are the only tools the skill is allowed to use.',
+  },
+  {
+    name: 'qc-helper',
+    where: 'skills/bundled/qc-helper/SKILL.md',
+    args: '<question>',
+    desc: 'Self-help for Qwen Code itself. Answers configuration / feature / troubleshooting questions by reading the bundled docs/ tree on demand, and can also edit ~/.qwen/settings.json for the user. Allowed tools: read, edit, grep, glob, read_many_files.',
+  },
+  {
+    name: 'review',
+    where: 'skills/bundled/review/SKILL.md',
+    args: '[pr-number|file-path] [--comment]',
+    desc: 'Detailed PR review skill. Identifies the review target (PR or local diff), dispatches subagents to inspect different concerns, and — with --comment — posts inline review comments via the GitHub Create Review API in a single batch. Hard-coded "silence is better than noise" rule.',
+  },
 ];
 
 // ---------- Notable internals ----------
